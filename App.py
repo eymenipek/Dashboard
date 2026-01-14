@@ -224,46 +224,63 @@ if df is not None:
     
     try:
         if compare_resampled and df_resampled is not None:
-            # Create comparison plots
-            st.subheader("📈 Original vs Resampled Data")
+            # Create overlapped comparison plot
+            st.subheader("📈 Original vs Resampled Data (Overlapped)")
             
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.write("**Original Data**")
-                if plot_type == "Scatter":
-                    fig1 = px.scatter(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} (Original)")
-                elif plot_type == "Line":
-                    fig1 = px.line(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} (Original)")
-                elif plot_type == "Bar":
-                    fig1 = px.bar(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} (Original)")
-                elif plot_type == "Histogram":
-                    fig1 = px.histogram(df, x=x_col, title=f"Distribution of {x_col} (Original)")
-                elif plot_type == "Box":
-                    fig1 = px.box(df, x=x_col, y=y_col, title=f"Box Plot: {x_col} (Original)")
-                elif plot_type == "Violin":
-                    fig1 = px.violin(df, x=x_col, y=y_col, title=f"Violin Plot: {x_col} (Original)")
+            # Only works for line and scatter plots
+            if plot_type in ["Line", "Scatter"]:
+                # Create figure with original data
+                if plot_type == "Line":
+                    fig = px.line(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} - Original vs Resampled")
+                else:
+                    fig = px.scatter(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} - Original vs Resampled")
                 
-                fig1.update_layout(height=400, hovermode="x unified")
-                st.plotly_chart(fig1, use_container_width=True)
-            
-            with col2:
-                st.write("**Resampled Data**")
-                if plot_type == "Scatter":
-                    fig2 = px.scatter(df_resampled, x=x_col, y=y_col, title=f"{x_col} vs {y_col} (Resampled)")
-                elif plot_type == "Line":
-                    fig2 = px.line(df_resampled, x=x_col, y=y_col, title=f"{x_col} vs {y_col} (Resampled)")
-                elif plot_type == "Bar":
-                    fig2 = px.bar(df_resampled, x=x_col, y=y_col, title=f"{x_col} vs {y_col} (Resampled)")
-                elif plot_type == "Histogram":
-                    fig2 = px.histogram(df_resampled, x=x_col, title=f"Distribution of {x_col} (Resampled)")
-                elif plot_type == "Box":
-                    fig2 = px.box(df_resampled, x=x_col, y=y_col, title=f"Box Plot: {x_col} (Resampled)")
-                elif plot_type == "Violin":
-                    fig2 = px.violin(df_resampled, x=x_col, y=y_col, title=f"Violin Plot: {x_col} (Resampled)")
+                # Add resampled data as overlay
+                if plot_type == "Line":
+                    fig_resampled = px.line(df_resampled, x=x_col, y=y_col)
+                else:
+                    fig_resampled = px.scatter(df_resampled, x=x_col, y=y_col)
                 
-                fig2.update_layout(height=400, hovermode="x unified")
-                st.plotly_chart(fig2, use_container_width=True)
+                # Add resampled traces to original figure
+                for trace in fig_resampled.data:
+                    trace.name = f"{trace.name} (Resampled)"
+                    trace.line.width = 3
+                    trace.line.dash = "dash"
+                    fig.add_trace(trace)
+                
+                # Update layout with CMU Serif font
+                fig.update_layout(
+                    height=600,
+                    hovermode="x unified",
+                    font=dict(family="CMU Serif", size=12),
+                    title=dict(font=dict(family="CMU Serif", size=16)),
+                    xaxis=dict(title=dict(font=dict(family="CMU Serif", size=12))),
+                    yaxis=dict(title=dict(font=dict(family="CMU Serif", size=12)))
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("📌 Overlapped comparison is only available for Line and Scatter plots. Please select one of these plot types.")
+                
+                # Show single plot instead
+                if plot_type == "Bar":
+                    fig = px.bar(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col}")
+                elif plot_type == "Histogram":
+                    fig = px.histogram(df, x=x_col, title=f"Distribution of {x_col}")
+                elif plot_type == "Box":
+                    fig = px.box(df, x=x_col, y=y_col, title=f"Box Plot: {x_col}")
+                elif plot_type == "Violin":
+                    fig = px.violin(df, x=x_col, y=y_col, title=f"Violin Plot: {x_col}")
+                
+                fig.update_layout(
+                    height=500,
+                    hovermode="x unified",
+                    font=dict(family="CMU Serif", size=12),
+                    title=dict(font=dict(family="CMU Serif", size=16)),
+                    xaxis=dict(title=dict(font=dict(family="CMU Serif", size=12))),
+                    yaxis=dict(title=dict(font=dict(family="CMU Serif", size=12)))
+                )
+                st.plotly_chart(fig, use_container_width=True)
         else:
             # Single plot
             if plot_type == "Scatter":
@@ -279,7 +296,14 @@ if df is not None:
             elif plot_type == "Violin":
                 fig = px.violin(df, x=x_col, y=y_col, title=f"Violin Plot: {x_col}")
             
-            fig.update_layout(height=500, hovermode="x unified")
+            fig.update_layout(
+                height=500,
+                hovermode="x unified",
+                font=dict(family="CMU Serif", size=12),
+                title=dict(font=dict(family="CMU Serif", size=16)),
+                xaxis=dict(title=dict(font=dict(family="CMU Serif", size=12))),
+                yaxis=dict(title=dict(font=dict(family="CMU Serif", size=12)))
+            )
             st.plotly_chart(fig, use_container_width=True)
     except Exception as e:
         st.error(f"Error creating plot: {e}")
