@@ -88,19 +88,22 @@ if df is not None:
         time_col = st.selectbox("Select time column", all_cols_for_time)
     
     with col2:
+        freq_options = {
+            "5S": "5 Seconds",
+            "10S": "10 Seconds",
+            "30S": "30 Seconds",
+            "T": "Minute",
+            "H": "Hourly",
+            "D": "Daily",
+            "W": "Weekly",
+            "M": "Monthly",
+            "Q": "Quarterly",
+            "Y": "Yearly"
+        }
         resample_freq = st.selectbox(
             "Resample frequency",
-            ["D", "H", "T", "S", "W", "M", "Q", "Y"],
-            format_func=lambda x: {
-                "D": "Daily",
-                "H": "Hourly",
-                "T": "Minute",
-                "S": "Second",
-                "W": "Weekly",
-                "M": "Monthly",
-                "Q": "Quarterly",
-                "Y": "Yearly"
-            }.get(x, x)
+            list(freq_options.keys()),
+            format_func=lambda x: freq_options.get(x, x)
         )
     
     with col3:
