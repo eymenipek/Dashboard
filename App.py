@@ -76,15 +76,87 @@ if df is not None:
     
     st.markdown("---")
     
+    # Resampling section
+    st.subheader("⏰ Time Series Resampling")
+    
+    datetime_cols = df.select_dtypes(include=['datetime64']).columns.tolist()
+    
+    if datetime_cols:
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            time_col = st.selectbox("Select datetime column", datetime_cols)
+        
+        with col2:
+            resample_freq = st.selectbox(
+                "Resample frequency",
+                ["D", "H", "T", "S", "W", "M", "Q", "Y"],
+                format_func=lambda x: {
+                    "D": "Daily",
+                    "H": "Hourly",
+                    "T": "Minute",
+                    "S": "Second",
+                    "W": "Weekly",
+                    "M": "Monthly",
+                    "Q": "Quarterly",
+                    "Y": "Yearly"
+                }.get(x, x)
+            )
+        
+        with col3:
+            agg_method = st.selectbox(
+                "Aggregation method",
+                ["mean", "sum", "min", "max", "std", "count"]
+            )
+        
+        try:
+            # Create a copy for resampling
+            df_resample = df.copy()
+            df_resample[time_col] = pd.to_datetime(df_resample[time_col])
+            df_resample = df_resample.set_index(time_col)
+            
+            # Resample numeric columns
+            numeric_cols_all = df_resample.select_dtypes(include=['number']).columns
+            df_resampled = df_resample[numeric_cols_all].resample(resample_freq).agg(agg_method)
+            df_resampled = df_resampled.reset_index()
+            
+            st.success(f"✅ Data resampled to {agg_method.upper()} by {resample_freq}")
+            
+            st.write(f"**Original shape**: {df.shape[0]} rows → **Resampled shape**: {df_resampled.shape[0]} rows")
+            st.dataframe(df_resampled, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error resampling data: {e}")
+    else:
+        st.info("📌 No datetime columns found. Add a datetime column to enable resampling.")
+        df_resampled = None
+    
+    st.markdown("---")
+    
     # Plotting section
     st.subheader("📊 Create Visualization")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        plot_type = st.selectbox(
+            "Select plot type",
+            ["Scatter", "Line", "Bar", "Histogram", "Box", "Violin"]
+        )
+    
+    with col2:
+        compare_resampled = st.checkbox(
+            "Compare original vs resampled data",
+            value=False,
+            disabled=(df_resampled is None)
+        )
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
         plot_type = st.selectbox(
             "Select plot type",
-            ["Scatter", "Line", "Bar", "Histogram", "Box", "Violin"]
+            ["Scatter", "Line", "Bar", "Histogram", "Box", "Violin"],
+            key="plot_type_main"
         )
     
     numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
@@ -93,35 +165,77 @@ if df is not None:
     
     with col2:
         if plot_type in ["Scatter", "Line", "Bar", "Box", "Violin"]:
-            x_col = st.selectbox("X-axis", all_cols)
+            x_col = st.selectbox("X-axis", all_cols, key="x_col_main")
         else:
-            x_col = st.selectbox("Column", numeric_cols if numeric_cols else all_cols)
+            x_col = st.selectbox("Column", numeric_cols if numeric_cols else all_cols, key="x_col_hist")
     
     with col3:
         if plot_type in ["Scatter", "Line", "Bar"]:
-            y_col = st.selectbox("Y-axis", numeric_cols if numeric_cols else all_cols)
+            y_col = st.selectbox("Y-axis", numeric_cols if numeric_cols else all_cols, key="y_col_main")
         elif plot_type in ["Box", "Violin"]:
-            y_col = st.selectbox("Y-axis", numeric_cols if numeric_cols else all_cols)
+            y_col = st.selectbox("Y-axis", numeric_cols if numeric_cols else all_cols, key="y_col_bv")
         else:
             y_col = None
     
     try:
-        # Create plot based on selection
-        if plot_type == "Scatter":
-            fig = px.scatter(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col}")
-        elif plot_type == "Line":
-            fig = px.line(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col}")
-        elif plot_type == "Bar":
-            fig = px.bar(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col}")
-        elif plot_type == "Histogram":
-            fig = px.histogram(df, x=x_col, title=f"Distribution of {x_col}")
-        elif plot_type == "Box":
-            fig = px.box(df, x=x_col, y=y_col, title=f"Box Plot: {x_col}")
-        elif plot_type == "Violin":
-            fig = px.violin(df, x=x_col, y=y_col, title=f"Violin Plot: {x_col}")
-        
-        fig.update_layout(height=500, hovermode="x unified")
-        st.plotly_chart(fig, use_container_width=True)
+        if compare_resampled and df_resampled is not None:
+            # Create comparison plots
+            st.subheader("📈 Original vs Resampled Data")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write("**Original Data**")
+                if plot_type == "Scatter":
+                    fig1 = px.scatter(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} (Original)")
+                elif plot_type == "Line":
+                    fig1 = px.line(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} (Original)")
+                elif plot_type == "Bar":
+                    fig1 = px.bar(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} (Original)")
+                elif plot_type == "Histogram":
+                    fig1 = px.histogram(df, x=x_col, title=f"Distribution of {x_col} (Original)")
+                elif plot_type == "Box":
+                    fig1 = px.box(df, x=x_col, y=y_col, title=f"Box Plot: {x_col} (Original)")
+                elif plot_type == "Violin":
+                    fig1 = px.violin(df, x=x_col, y=y_col, title=f"Violin Plot: {x_col} (Original)")
+                
+                fig1.update_layout(height=400, hovermode="x unified")
+                st.plotly_chart(fig1, use_container_width=True)
+            
+            with col2:
+                st.write("**Resampled Data**")
+                if plot_type == "Scatter":
+                    fig2 = px.scatter(df_resampled, x=x_col, y=y_col, title=f"{x_col} vs {y_col} (Resampled)")
+                elif plot_type == "Line":
+                    fig2 = px.line(df_resampled, x=x_col, y=y_col, title=f"{x_col} vs {y_col} (Resampled)")
+                elif plot_type == "Bar":
+                    fig2 = px.bar(df_resampled, x=x_col, y=y_col, title=f"{x_col} vs {y_col} (Resampled)")
+                elif plot_type == "Histogram":
+                    fig2 = px.histogram(df_resampled, x=x_col, title=f"Distribution of {x_col} (Resampled)")
+                elif plot_type == "Box":
+                    fig2 = px.box(df_resampled, x=x_col, y=y_col, title=f"Box Plot: {x_col} (Resampled)")
+                elif plot_type == "Violin":
+                    fig2 = px.violin(df_resampled, x=x_col, y=y_col, title=f"Violin Plot: {x_col} (Resampled)")
+                
+                fig2.update_layout(height=400, hovermode="x unified")
+                st.plotly_chart(fig2, use_container_width=True)
+        else:
+            # Single plot
+            if plot_type == "Scatter":
+                fig = px.scatter(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col}")
+            elif plot_type == "Line":
+                fig = px.line(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col}")
+            elif plot_type == "Bar":
+                fig = px.bar(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col}")
+            elif plot_type == "Histogram":
+                fig = px.histogram(df, x=x_col, title=f"Distribution of {x_col}")
+            elif plot_type == "Box":
+                fig = px.box(df, x=x_col, y=y_col, title=f"Box Plot: {x_col}")
+            elif plot_type == "Violin":
+                fig = px.violin(df, x=x_col, y=y_col, title=f"Violin Plot: {x_col}")
+            
+            fig.update_layout(height=500, hovermode="x unified")
+            st.plotly_chart(fig, use_container_width=True)
     except Exception as e:
         st.error(f"Error creating plot: {e}")
     
