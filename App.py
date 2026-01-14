@@ -235,18 +235,33 @@ if df is not None:
                 else:
                     fig = px.scatter(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col} - Original vs Resampled")
                 
-                # Add resampled data as overlay
+                # Update original trace color
+                fig.data[0].line.color = "#1f77b4"
+                fig.data[0].name = f"{y_col} (Original)"
+                
+                # Add resampled data as overlay with different color
                 if plot_type == "Line":
                     fig_resampled = px.line(df_resampled, x=x_col, y=y_col)
                 else:
                     fig_resampled = px.scatter(df_resampled, x=x_col, y=y_col)
                 
-                # Add resampled traces to original figure
+                # Add resampled traces to original figure with red color
                 for trace in fig_resampled.data:
-                    trace.name = f"{trace.name} (Resampled)"
+                    trace.name = f"{y_col} (Resampled)"
+                    trace.line.color = "#d62728"
                     trace.line.width = 3
                     trace.line.dash = "dash"
+                    trace.visible = True
                     fig.add_trace(trace)
+                
+                # Add additional signal if selected
+                if add_signal and additional_col:
+                    fig_additional = px.line(df, x=x_col, y=additional_col)
+                    for trace in fig_additional.data:
+                        trace.name = f"{additional_col} (Original)"
+                        trace.line.color = "#2ca02c"
+                        trace.visible = True
+                        fig.add_trace(trace)
                 
                 # Update layout with CMU Serif font
                 fig.update_layout(
@@ -255,10 +270,17 @@ if df is not None:
                     font=dict(family="CMU Serif", size=12),
                     title=dict(font=dict(family="CMU Serif", size=16)),
                     xaxis=dict(title=dict(font=dict(family="CMU Serif", size=12))),
-                    yaxis=dict(title=dict(font=dict(family="CMU Serif", size=12)))
+                    yaxis=dict(title=dict(font=dict(family="CMU Serif", size=12))),
+                    showlegend=True
+                )
+                
+                # Make traces clickable to show/hide
+                fig.update_layout(
+                    clickmode='event+select',
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
+                st.caption("💡 Click legend items to show/hide traces")
             else:
                 st.info("📌 Overlapped comparison is only available for Line and Scatter plots. Please select one of these plot types.")
                 
@@ -296,15 +318,31 @@ if df is not None:
             elif plot_type == "Violin":
                 fig = px.violin(df, x=x_col, y=y_col, title=f"Violin Plot: {x_col}")
             
+            # Add additional signal if selected
+            if add_signal and additional_col and plot_type in ["Line", "Scatter"]:
+                if plot_type == "Line":
+                    fig_additional = px.line(df, x=x_col, y=additional_col)
+                else:
+                    fig_additional = px.scatter(df, x=x_col, y=additional_col)
+                
+                for trace in fig_additional.data:
+                    trace.name = additional_col
+                    trace.line.color = "#2ca02c"
+                    fig.add_trace(trace)
+            
             fig.update_layout(
                 height=500,
                 hovermode="x unified",
                 font=dict(family="CMU Serif", size=12),
                 title=dict(font=dict(family="CMU Serif", size=16)),
                 xaxis=dict(title=dict(font=dict(family="CMU Serif", size=12))),
-                yaxis=dict(title=dict(font=dict(family="CMU Serif", size=12)))
+                yaxis=dict(title=dict(font=dict(family="CMU Serif", size=12))),
+                showlegend=True
             )
+            
             st.plotly_chart(fig, use_container_width=True)
+            if add_signal or compare_resampled:
+                st.caption("💡 Click legend items to show/hide traces")
     except Exception as e:
         st.error(f"Error creating plot: {e}")
     
