@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from io import StringIO
+from io import StringIO, BytesIO # Added BytesIO for Excel/Parquet downloads
 import requests
 
 try:
@@ -52,9 +52,9 @@ with tab2:
             if github_url.endswith('.csv'):
                 df = pd.read_csv(StringIO(response.text))
             elif github_url.endswith('.xlsx'):
-                df = pd.read_excel(StringIO(response.content))
+                df = pd.read_excel(BytesIO(response.content)) # Use BytesIO for excel import
             elif github_url.endswith('.parquet'):
-                df = pd.read_parquet(StringIO(response.content))
+                df = pd.read_parquet(BytesIO(response.content)) # Use BytesIO for parquet import
             st.success("✅ File loaded successfully from GitHub!")
         except Exception as e:
             st.error(f"Error loading from GitHub: {e}")
@@ -113,6 +113,7 @@ if df is not None:
         )
     
     with col4:
+        st.write("") # Spacer
         resample_button = st.button("🔄 Resample Data")
     
     df_resampled = None
@@ -180,41 +181,44 @@ if df is not None:
     # Plotting section
     st.subheader("📊 Create Visualization")
     
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     
+    numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+    categorical_cols = df.select_dtypes(include=['object']).columns.tolist()
+    all_cols = df.columns.tolist()
+
     with col1:
         plot_type = st.selectbox(
             "Select plot type",
             ["Scatter", "Line", "Bar", "Histogram", "Box", "Violin"]
         )
-    
+
+    # --- FIX START: Define add_signal and additional_col checkboxes ---
     with col2:
         compare_resampled = st.checkbox(
-            "Compare original vs resampled data",
+            "Compare original vs resampled",
             value=False,
             disabled=(df_resampled is None)
         )
+        add_signal = st.checkbox("Add additional signal trace?")
+
+    with col3:
+        if add_signal:
+             additional_col = st.selectbox("Select additional column", numeric_cols if numeric_cols else all_cols)
+        else:
+            additional_col = None
+    # --- FIX END ---
     
-    col1, col2, col3 = st.columns(3)
+    # New row for axis selection
+    col1, col2 = st.columns(2)
     
     with col1:
-        plot_type = st.selectbox(
-            "Select plot type",
-            ["Scatter", "Line", "Bar", "Histogram", "Box", "Violin"],
-            key="plot_type_main"
-        )
-    
-    numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
-    categorical_cols = df.select_dtypes(include=['object']).columns.tolist()
-    all_cols = df.columns.tolist()
-    
-    with col2:
         if plot_type in ["Scatter", "Line", "Bar", "Box", "Violin"]:
             x_col = st.selectbox("X-axis", all_cols, key="x_col_main")
         else:
             x_col = st.selectbox("Column", numeric_cols if numeric_cols else all_cols, key="x_col_hist")
     
-    with col3:
+    with col2:
         if plot_type in ["Scatter", "Line", "Bar"]:
             y_col = st.selectbox("Y-axis", numeric_cols if numeric_cols else all_cols, key="y_col_main")
         elif plot_type in ["Box", "Violin"]:
@@ -258,51 +262,23 @@ if df is not None:
                 if add_signal and additional_col:
                     fig_additional = px.line(df, x=x_col, y=additional_col)
                     for trace in fig_additional.data:
-                        trace.name = f"{additional_col} (Original)"
+                        trace.name = f"{additional_col} (Signal)"
                         trace.line.color = "#2ca02c"
                         trace.visible = True
                         fig.add_trace(trace)
                 
-                # Update layout with CMU Serif font
+                # Update layout
                 fig.update_layout(
                     height=600,
                     hovermode="x unified",
-                    font=dict(family="CMU Serif", size=12),
-                    title=dict(font=dict(family="CMU Serif", size=16)),
-                    xaxis=dict(title=dict(font=dict(family="CMU Serif", size=12))),
-                    yaxis=dict(title=dict(font=dict(family="CMU Serif", size=12))),
                     showlegend=True
-                )
-                
-                # Make traces clickable to show/hide
-                fig.update_layout(
-                    clickmode='event+select',
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
                 st.caption("💡 Click legend items to show/hide traces")
             else:
-                st.info("📌 Overlapped comparison is only available for Line and Scatter plots. Please select one of these plot types.")
+                st.info("📌 Overlapped comparison is only available for Line and Scatter plots.")
                 
-                # Show single plot instead
-                if plot_type == "Bar":
-                    fig = px.bar(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col}")
-                elif plot_type == "Histogram":
-                    fig = px.histogram(df, x=x_col, title=f"Distribution of {x_col}")
-                elif plot_type == "Box":
-                    fig = px.box(df, x=x_col, y=y_col, title=f"Box Plot: {x_col}")
-                elif plot_type == "Violin":
-                    fig = px.violin(df, x=x_col, y=y_col, title=f"Violin Plot: {x_col}")
-                
-                fig.update_layout(
-                    height=500,
-                    hovermode="x unified",
-                    font=dict(family="CMU Serif", size=12),
-                    title=dict(font=dict(family="CMU Serif", size=16)),
-                    xaxis=dict(title=dict(font=dict(family="CMU Serif", size=12))),
-                    yaxis=dict(title=dict(font=dict(family="CMU Serif", size=12)))
-                )
-                st.plotly_chart(fig, use_container_width=True)
         else:
             # Single plot
             if plot_type == "Scatter":
@@ -330,19 +306,10 @@ if df is not None:
                     trace.line.color = "#2ca02c"
                     fig.add_trace(trace)
             
-            fig.update_layout(
-                height=500,
-                hovermode="x unified",
-                font=dict(family="CMU Serif", size=12),
-                title=dict(font=dict(family="CMU Serif", size=16)),
-                xaxis=dict(title=dict(font=dict(family="CMU Serif", size=12))),
-                yaxis=dict(title=dict(font=dict(family="CMU Serif", size=12))),
-                showlegend=True
-            )
+            fig.update_layout(height=500, showlegend=True)
             
             st.plotly_chart(fig, use_container_width=True)
-            if add_signal or compare_resampled:
-                st.caption("💡 Click legend items to show/hide traces")
+            
     except Exception as e:
         st.error(f"Error creating plot: {e}")
     
@@ -351,26 +318,38 @@ if df is not None:
     st.subheader("💾 Download Data")
     
     col1, col2, col3 = st.columns(3)
+    
+    # --- FIX START: Correct Buffer Logic for Downloads ---
     with col1:
         st.download_button(
             label="Download as CSV",
-            data=df.to_csv(index=False),
+            data=df.to_csv(index=False).encode('utf-8'),
             file_name="data.csv",
             mime="text/csv"
         )
     with col2:
+        # Excel requires a buffer
+        buffer_excel = BytesIO()
+        with pd.ExcelWriter(buffer_excel, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False)
+        
         st.download_button(
             label="Download as Excel",
-            data=df.to_excel(index=False),
+            data=buffer_excel.getvalue(),
             file_name="data.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     with col3:
+        # Parquet requires a buffer
+        buffer_parquet = BytesIO()
+        df.to_parquet(buffer_parquet, index=False)
+        
         st.download_button(
             label="Download as Parquet",
-            data=df.to_parquet(index=False),
+            data=buffer_parquet.getvalue(),
             file_name="data.parquet",
             mime="application/octet-stream"
         )
+    # --- FIX END ---
 else:
     st.info("👆 Upload a file or import from GitHub to get started")
