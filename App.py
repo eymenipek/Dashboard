@@ -1,8 +1,13 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 from io import StringIO
 import requests
+
+try:
+    import plotly.express as px
+except ImportError:
+    st.error("⚠️ Plotly is not installed. Please install it with: pip install plotly")
+    st.stop()
 
 st.set_page_config(page_title="Data Viewer & Plotter", layout="wide")
 
