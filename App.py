@@ -122,25 +122,46 @@ if df is not None:
             # Create a copy for resampling
             df_resample = df.copy()
             
-            # Try to convert to datetime
-            df_resample[time_col] = pd.to_datetime(df_resample[time_col], errors='coerce')
+            # Check if column is numeric (seconds since epoch)
+            if pd.api.types.is_numeric_dtype(df_resample[time_col]):
+                # Assume it's seconds, convert to datetime
+                df_resample['time_dt'] = pd.to_datetime(df_resample[time_col], unit='s', errors='coerce')
+                original_time_col = time_col
+                time_col_dt = 'time_dt'
+            else:
+                # Try to parse as datetime string
+                df_resample['time_dt'] = pd.to_datetime(df_resample[time_col], errors='coerce')
+                original_time_col = time_col
+                time_col_dt = 'time_dt'
             
             # Check if conversion was successful
-            if df_resample[time_col].isna().all():
-                st.error(f"❌ Column '{time_col}' could not be converted to datetime format.")
+            if df_resample[time_col_dt].isna().all():
+                st.error(f"❌ Column '{original_time_col}' could not be converted to datetime format.")
             else:
-                if df_resample[time_col].isna().any():
-                    st.warning(f"⚠️ Some values in '{time_col}' could not be converted and will be ignored.")
+                if df_resample[time_col_dt].isna().any():
+                    st.warning(f"⚠️ Some values in '{original_time_col}' could not be converted and will be ignored.")
+                    df_resample = df_resample.dropna(subset=[time_col_dt])
                 
-                df_resample = df_resample.set_index(time_col)
+                df_resample = df_resample.set_index(time_col_dt)
                 
                 # Resample numeric columns
-                numeric_cols_all = df_resample.select_dtypes(include=['number']).columns
+                numeric_cols_all = df_resample.select_dtypes(include=['number']).columns.tolist()
+                # Remove the original time column if it's numeric
+                numeric_cols_all = [col for col in numeric_cols_all if col != original_time_col]
+                
                 if len(numeric_cols_all) == 0:
                     st.error("❌ No numeric columns found to resample.")
                 else:
                     df_resampled = df_resample[numeric_cols_all].resample(resample_freq).agg(agg_method)
                     df_resampled = df_resampled.reset_index()
+                    
+                    # Convert datetime index back to seconds (Unix timestamp)
+                    df_resampled[original_time_col] = (df_resampled[time_col_dt].astype(int) / 1e9).astype(int)
+                    df_resampled = df_resampled.drop(columns=[time_col_dt])
+                    
+                    # Reorder columns
+                    cols = [original_time_col] + [col for col in df_resampled.columns if col != original_time_col]
+                    df_resampled = df_resampled[cols]
                     
                     st.success(f"✅ Data resampled to {agg_method.upper()} by {resample_freq}")
                     
