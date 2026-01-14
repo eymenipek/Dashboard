@@ -80,55 +80,76 @@ if df is not None:
     st.subheader("⏰ Time Series Resampling")
     
     datetime_cols = df.select_dtypes(include=['datetime64']).columns.tolist()
+    all_cols_for_time = df.columns.tolist()
     
-    if datetime_cols:
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            time_col = st.selectbox("Select datetime column", datetime_cols)
-        
-        with col2:
-            resample_freq = st.selectbox(
-                "Resample frequency",
-                ["D", "H", "T", "S", "W", "M", "Q", "Y"],
-                format_func=lambda x: {
-                    "D": "Daily",
-                    "H": "Hourly",
-                    "T": "Minute",
-                    "S": "Second",
-                    "W": "Weekly",
-                    "M": "Monthly",
-                    "Q": "Quarterly",
-                    "Y": "Yearly"
-                }.get(x, x)
-            )
-        
-        with col3:
-            agg_method = st.selectbox(
-                "Aggregation method",
-                ["mean", "sum", "min", "max", "std", "count"]
-            )
-        
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        time_col = st.selectbox("Select time column", all_cols_for_time)
+    
+    with col2:
+        resample_freq = st.selectbox(
+            "Resample frequency",
+            ["D", "H", "T", "S", "W", "M", "Q", "Y"],
+            format_func=lambda x: {
+                "D": "Daily",
+                "H": "Hourly",
+                "T": "Minute",
+                "S": "Second",
+                "W": "Weekly",
+                "M": "Monthly",
+                "Q": "Quarterly",
+                "Y": "Yearly"
+            }.get(x, x)
+        )
+    
+    with col3:
+        agg_method = st.selectbox(
+            "Aggregation method",
+            ["mean", "sum", "min", "max", "std", "count", "first", "last"]
+        )
+    
+    with col4:
+        resample_button = st.button("🔄 Resample Data")
+    
+    df_resampled = None
+    
+    if resample_button:
         try:
             # Create a copy for resampling
             df_resample = df.copy()
-            df_resample[time_col] = pd.to_datetime(df_resample[time_col])
-            df_resample = df_resample.set_index(time_col)
             
-            # Resample numeric columns
-            numeric_cols_all = df_resample.select_dtypes(include=['number']).columns
-            df_resampled = df_resample[numeric_cols_all].resample(resample_freq).agg(agg_method)
-            df_resampled = df_resampled.reset_index()
+            # Try to convert to datetime
+            df_resample[time_col] = pd.to_datetime(df_resample[time_col], errors='coerce')
             
-            st.success(f"✅ Data resampled to {agg_method.upper()} by {resample_freq}")
-            
-            st.write(f"**Original shape**: {df.shape[0]} rows → **Resampled shape**: {df_resampled.shape[0]} rows")
-            st.dataframe(df_resampled, use_container_width=True)
+            # Check if conversion was successful
+            if df_resample[time_col].isna().all():
+                st.error(f"❌ Column '{time_col}' could not be converted to datetime format.")
+            else:
+                if df_resample[time_col].isna().any():
+                    st.warning(f"⚠️ Some values in '{time_col}' could not be converted and will be ignored.")
+                
+                df_resample = df_resample.set_index(time_col)
+                
+                # Resample numeric columns
+                numeric_cols_all = df_resample.select_dtypes(include=['number']).columns
+                if len(numeric_cols_all) == 0:
+                    st.error("❌ No numeric columns found to resample.")
+                else:
+                    df_resampled = df_resample[numeric_cols_all].resample(resample_freq).agg(agg_method)
+                    df_resampled = df_resampled.reset_index()
+                    
+                    st.success(f"✅ Data resampled to {agg_method.upper()} by {resample_freq}")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Original rows", df.shape[0])
+                    with col2:
+                        st.metric("Resampled rows", df_resampled.shape[0])
+                    
+                    st.dataframe(df_resampled, use_container_width=True)
         except Exception as e:
-            st.error(f"Error resampling data: {e}")
-    else:
-        st.info("📌 No datetime columns found. Add a datetime column to enable resampling.")
-        df_resampled = None
+            st.error(f"❌ Error resampling data: {e}")
     
     st.markdown("---")
     
